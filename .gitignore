@@ -1,3 +1,5 @@
 build/
 cmake_install.cmake
 CMakeFiles/
+libnexusmods.a
+Makefile
