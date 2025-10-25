@@ -4,7 +4,7 @@ project(nexusmods LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-set(DEPS_DIR ${CMAKE_SOURCE_DIR}/deps)
+set(DEPS_DIR ${CMAKE_CURRENT_SOURCE_DIR}/deps)
 
 add_library(nexusmods STATIC
     src/client.cpp
@@ -12,9 +12,9 @@ add_library(nexusmods STATIC
 
 target_include_directories(nexusmods
     PUBLIC
-        ${CMAKE_SOURCE_DIR}/include	# for this library
-        ${DEPS_DIR}/cpp-httplib		# httplib single-header dir
-        ${DEPS_DIR}/rapidjson/include	# rapidjson include dir
+        ${CMAKE_CURRENT_SOURCE_DIR}/include	# for this library
+        ${DEPS_DIR}/cpp-httplib			# httplib single-header dir
+        ${DEPS_DIR}/rapidjson/include		# rapidjson include dir
 )
 
 target_compile_definitions(nexusmods PUBLIC CPPHTTPLIB_OPENSSL_SUPPORT)
