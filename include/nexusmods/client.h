@@ -23,8 +23,8 @@ public:
   // api_key: personal API key string
   // user_agent: recommended UA string
   Client(const std::string &api_key,
-              const std::string &host = "api.nexusmods.com", int port = 443,
-              const std::string &user_agent = "nexusmods-cpp/1.0");
+         const std::string &host = "api.nexusmods.com", int port = 443,
+         const std::string &user_agent = "nexusmods-cpp/1.0");
 
   ~Client();
 
@@ -89,7 +89,8 @@ public:
   std::optional<rapidjson::Document>
   get_game(const std::string &game_domain_name);
 
-  // Set backoff callback for logging sleeps/backoff (signature: seconds_to_sleep)
+  // Set backoff callback for logging sleeps/backoff (signature:
+  // seconds_to_sleep)
   void set_backoff_callback(std::function<void(int)> cb);
 
 private:
