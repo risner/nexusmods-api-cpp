@@ -145,38 +145,41 @@ std::optional<rapidjson::Document>
 Client::get_json(const std::string &path, const httplib::Params &params,
                  const httplib::Headers &extra_headers) {
 
-   auto error_json = [](int code, const std::string &message, const std::string &path) {
-        rapidjson::Document err;
-        err.SetObject();
-        auto &alloc = err.GetAllocator();
-        err.AddMember("code", code, alloc);
-        err.AddMember("message", rapidjson::Value(message.c_str(), alloc), alloc);
-        err.AddMember("endpoint", rapidjson::Value(path.c_str(), alloc), alloc);
-        return err;
-    };
+  auto error_json = [](int code, const std::string &message,
+                       const std::string &path) {
+    rapidjson::Document err;
+    err.SetObject();
+    auto &alloc = err.GetAllocator();
+    err.AddMember("code", code, alloc);
+    err.AddMember("message", rapidjson::Value(message.c_str(), alloc), alloc);
+    err.AddMember("endpoint", rapidjson::Value(path.c_str(), alloc), alloc);
+    return err;
+  };
 
   auto r = get(path, params, extra_headers);
   if (!r) {
     // {"code":998,"message":"API error - get() failed"}
-    return error_json(998, "[ERROR] HTTP request failed (no response object).", path);
+    return error_json(998, "[ERROR] HTTP request failed (no response object).",
+                      path);
   }
   if (r->status < 200 || r->status >= 300) {
     // failure
-        std::ostringstream oss;
-        oss << "[ERROR] HTTP request failed with status " << r->status;
-        if (!r->body.empty())
-            oss << " | Body: " << r->body.substr(0, 300);
-        return error_json(997, oss.str(), path);
+    std::ostringstream oss;
+    oss << "[ERROR] HTTP request failed with status " << r->status;
+    if (!r->body.empty())
+      oss << " | Body: " << r->body.substr(0, 300);
+    return error_json(997, oss.str(), path);
   }
 
   rapidjson::Document d;
   rapidjson::ParseResult ok = d.Parse(r->body.c_str(), r->body.size());
 
   if (!ok) {
-        std::ostringstream oss;
-        oss << "[ERROR] JSON parse failed: " << rapidjson::GetParseError_En(ok.Code())
-            << " (offset " << ok.Offset() << ")";
-        return error_json(996, oss.str(), path);
+    std::ostringstream oss;
+    oss << "[ERROR] JSON parse failed: "
+        << rapidjson::GetParseError_En(ok.Code()) << " (offset " << ok.Offset()
+        << ")";
+    return error_json(996, oss.str(), path);
   }
 
   return d;
