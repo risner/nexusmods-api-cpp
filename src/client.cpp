@@ -265,13 +265,14 @@ Client::get_file_download_link(const std::string &game_domain_name,
                                const std::string &mod_id,
                                const std::string &file_id) {
 
-  // Exactly what this note means, is yet to be determined.
-  //
   // NOTE: Non-premium members must provide the key and expiry from
   // the .nxm link provided by the website. It is recommended for clients
   // to extract them from the nxm link before sending this request. This
   // ensures that all non-premium members must access the website to
   // download through the API.
+
+  // This library requires premium, as there is no support for access to
+  // the downloaded .nxm file.
 
   std::ostringstream path;
   path << "/v1/games/" << game_domain_name << "/mods/" << mod_id << "/files/"

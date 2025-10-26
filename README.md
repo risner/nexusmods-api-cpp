@@ -15,3 +15,5 @@ target_link_libraries(yourmod PRIVATE
 	nexusmods
 )
 ```
+# Premium required to get download links
+get_file_download_link()
