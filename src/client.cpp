@@ -82,47 +82,97 @@ Client::perform_get_with_rate_limit(const std::string &path,
 
     auto &response = *res;
 
+    auto hdr = [&](const std::string& key) {
+      auto it = response.headers.find(key);
+      // check the key, return the value (second) if present
+      return it != response.headers.end() ? it->second : "";
+    };
+
+    auto parse_date = [](const std::string& date_str) -> std::optional<std::chrono::system_clock::time_point> {
+      std::tm tm = {};
+      std::istringstream ss(date_str);
+
+      // Try RFC 1123: "Wed, 21 Oct 2015 07:28:00 GMT"
+      ss >> std::get_time(&tm, "%a, %d %b %Y %H:%M:%S");
+      if (!ss.fail()) return std::chrono::system_clock::from_time_t(std::mktime(&tm));
+
+      // Try ISO: "2019-02-02 00:00:00 +0000"
+      ss.clear(); ss.str(date_str);
+      ss >> std::get_time(&tm, "%Y-%m-%d %H:%M:%S");
+      if (!ss.fail()) return std::chrono::system_clock::from_time_t(std::mktime(&tm));
+
+      // Try ISO with T: "2019-02-02T00:00:00"
+      ss.clear(); ss.str(date_str);
+      ss >> std::get_time(&tm, "%Y-%m-%dT%H:%M:%S");
+      if (!ss.fail()) return std::chrono::system_clock::from_time_t(std::mktime(&tm));
+
+      return std::nullopt;
+    };
+
     // Rate-Limit Check (429 Too Many Requests)
+    //   https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Retry-After
     if (response.status == 429) {
-      int retry_after = 0;
-      auto it = response.headers.find("Retry-After");
-      if (it != response.headers.end()) {
-        try {
-          retry_after = std::stoi(it->second);
-        } catch (...) {
-          retry_after = base_backoff_seconds * (1 << attempt);
+      int retry_seconds = base_backoff_seconds * (1 << attempt);
+      std::string retry_header = hdr("Retry-After");
+
+      try {
+        // Check for "Retry-After: 120" first
+        retry_seconds = std::stoi(retry_header);
+      } catch (...) {
+        // Now check for "Retry-After: Wed, 21 Oct 2015 07:28:00 GMT"
+        auto parsed = parse_date(retry_header);
+        if (parsed) {
+          auto now = std::chrono::system_clock::now();
+          retry_seconds = std::chrono::duration_cast<std::chrono::seconds>(*parsed - now).count();
         }
-      } else {
-        retry_after = base_backoff_seconds * (1 << attempt);
       }
+
       if (backoff_cb_)
-        backoff_cb_(retry_after);
-      std::this_thread::sleep_for(std::chrono::seconds(retry_after));
+        backoff_cb_(retry_seconds);
+      // sleep at least 1 second
+      std::this_thread::sleep_for(std::chrono::seconds(std::max(retry_seconds, 1)));
+      continue;
+    }
+
+    // https://app.swaggerhub.com/apis-docs/NexusMods/nexus-mods_public_api_params_in_form_data/1.0
+    // API Confirmed headers:
+    //    X-RL-Hourly-Remaining, X--RL-Hourly-Reset
+    //    X-RL-Daily-Remaining,  X--RL-Daily-Reset
+
+    // Check rate-limit related headers (if present)
+    // X-RL-Daily-Reset "2019-02-02 00:00:00 +0000"
+    //
+    // If remaining == 0, sleep until reset if available
+    if (hdr("X-RL-Daily-Remaining") == "0") {
+      int retry_seconds = base_backoff_seconds * (1 << attempt);
+      auto parsed = parse_date(hdr("X-RL-Daily-Reset"));
+      if (parsed) {
+        auto now = std::chrono::system_clock::now();
+        retry_seconds = std::chrono::duration_cast<std::chrono::seconds>(*parsed - now).count();
+      }
+
+      if (backoff_cb_)
+        backoff_cb_(retry_seconds);
+      std::this_thread::sleep_for(std::chrono::seconds(std::max(retry_seconds, 1)));
       continue;
     }
 
     // Check rate-limit related headers (if present)
-    // Common headers: X-RateLimit-Remaining, X-RateLimit-Reset
-    // If remaining == 0, sleep until reset if available
-    {
-      auto it = response.headers.find("X-RateLimit-Remaining");
-      if (it != response.headers.end() && it->second == "0") {
-        int reset_seconds = 0;
-        auto it2 = response.headers.find("X-RateLimit-Reset");
-        if (it2 != response.headers.end()) {
-          try {
-            reset_seconds = std::stoi(it2->second);
-          } catch (...) {
-            reset_seconds = base_backoff_seconds * (1 << attempt);
-          }
-        } else {
-          reset_seconds = base_backoff_seconds * (1 << attempt);
-        }
-        if (backoff_cb_)
-          backoff_cb_(reset_seconds);
-        std::this_thread::sleep_for(std::chrono::seconds(reset_seconds));
-        continue;
+    // X-RL-Hourly-Reset "2019-02-02 00:00:00 +0000"
+    //
+    if (hdr("X-RL-Hourly-Remaining") == "0") {
+      int retry_seconds = base_backoff_seconds * (1 << attempt);
+      auto parsed = parse_date(hdr("X-RL-Hourly-Reset"));
+
+      if (parsed) {
+        auto now = std::chrono::system_clock::now();
+        retry_seconds = std::chrono::duration_cast<std::chrono::seconds>(*parsed - now).count();
       }
+
+      if (backoff_cb_)
+        backoff_cb_(retry_seconds);
+      std::this_thread::sleep_for(std::chrono::seconds(std::max(retry_seconds, 1)));
+      continue;
     }
 
     NexusResponse out;
@@ -195,12 +245,11 @@ Client::get_updated_mods(const std::string &game_domain_name,
 
 std::optional<rapidjson::Document>
 Client::get_mod_changelogs(const std::string &game_domain_name,
-                           const std::string &mod_id,
-                           const httplib::Params &params) {
+                           const std::string &mod_id) {
   std::ostringstream path;
   path << "/v1/games/" << game_domain_name << "/mods/" << mod_id
        << "/changelogs.json";
-  return get_json(path.str(), params);
+  return get_json(path.str());
 }
 
 std::optional<rapidjson::Document>
@@ -263,7 +312,8 @@ Client::get_mod_file(const std::string &game_domain_name,
 std::optional<rapidjson::Document>
 Client::get_file_download_link(const std::string &game_domain_name,
                                const std::string &mod_id,
-                               const std::string &file_id) {
+                               const std::string &file_id,
+                               const httplib::Params &params) {
 
   // NOTE: Non-premium members must provide the key and expiry from
   // the .nxm link provided by the website. It is recommended for clients

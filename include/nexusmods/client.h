@@ -57,8 +57,7 @@ public:
 
   std::optional<rapidjson::Document>
   get_mod_changelogs(const std::string &game_domain_name,
-                     const std::string &mod_id,
-                     const httplib::Params &params = httplib::Params());
+                     const std::string &mod_id);
 
   std::optional<rapidjson::Document>
   get_latest_added(const std::string &game_domain_name);
@@ -83,7 +82,8 @@ public:
 
   std::optional<rapidjson::Document>
   get_file_download_link(const std::string &game_domain_name,
-                         const std::string &mod_id, const std::string &file_id);
+                         const std::string &mod_id, const std::string &file_id,
+                         const httplib::Params &params);
 
   // Game Info
   std::optional<rapidjson::Document>
