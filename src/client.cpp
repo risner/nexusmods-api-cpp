@@ -94,17 +94,17 @@ Client::perform_get_with_rate_limit(const std::string &path,
 
       // Try RFC 1123: "Wed, 21 Oct 2015 07:28:00 GMT"
       ss >> std::get_time(&tm, "%a, %d %b %Y %H:%M:%S");
-      if (!ss.fail()) return std::chrono::system_clock::from_time_t(std::mktime(&tm));
+      if (!ss.fail()) return std::chrono::system_clock::from_time_t(timegm(&tm));
 
       // Try ISO: "2019-02-02 00:00:00 +0000"
       ss.clear(); ss.str(date_str);
       ss >> std::get_time(&tm, "%Y-%m-%d %H:%M:%S");
-      if (!ss.fail()) return std::chrono::system_clock::from_time_t(std::mktime(&tm));
+      if (!ss.fail()) return std::chrono::system_clock::from_time_t(timegm(&tm));
 
       // Try ISO with T: "2019-02-02T00:00:00"
       ss.clear(); ss.str(date_str);
       ss >> std::get_time(&tm, "%Y-%m-%dT%H:%M:%S");
-      if (!ss.fail()) return std::chrono::system_clock::from_time_t(std::mktime(&tm));
+      if (!ss.fail()) return std::chrono::system_clock::from_time_t(timegm(&tm));
 
       return std::nullopt;
     };
@@ -123,7 +123,7 @@ Client::perform_get_with_rate_limit(const std::string &path,
         auto parsed = parse_date(retry_header);
         if (parsed) {
           auto now = std::chrono::system_clock::now();
-          retry_seconds = std::chrono::duration_cast<std::chrono::seconds>(*parsed - now).count();
+          retry_seconds = std::chrono::duration_cast<std::chrono::seconds>(*parsed - now).count() + 1;
         }
       }
 
@@ -148,7 +148,7 @@ Client::perform_get_with_rate_limit(const std::string &path,
       auto parsed = parse_date(hdr("X-RL-Daily-Reset"));
       if (parsed) {
         auto now = std::chrono::system_clock::now();
-        retry_seconds = std::chrono::duration_cast<std::chrono::seconds>(*parsed - now).count();
+        retry_seconds = std::chrono::duration_cast<std::chrono::seconds>(*parsed - now).count() + 1;
       }
 
       if (backoff_cb_)
@@ -166,7 +166,7 @@ Client::perform_get_with_rate_limit(const std::string &path,
 
       if (parsed) {
         auto now = std::chrono::system_clock::now();
-        retry_seconds = std::chrono::duration_cast<std::chrono::seconds>(*parsed - now).count();
+        retry_seconds = std::chrono::duration_cast<std::chrono::seconds>(*parsed - now).count() + 1;
       }
 
       if (backoff_cb_)
@@ -334,6 +334,13 @@ std::optional<rapidjson::Document>
 Client::get_game(const std::string &game_domain_name) {
   std::ostringstream path;
   path << "/v1/games/" << game_domain_name << ".json";
+  return get_json(path.str());
+}
+
+std::optional<rapidjson::Document>
+Client::get_games() {
+  std::ostringstream path;
+  path << "/v1/games.json";
   return get_json(path.str());
 }
 

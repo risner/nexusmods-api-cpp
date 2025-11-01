@@ -87,6 +87,9 @@ public:
 
   // Game Info
   std::optional<rapidjson::Document>
+  get_games();
+
+  std::optional<rapidjson::Document>
   get_game(const std::string &game_domain_name);
 
   // Set backoff callback for logging sleeps/backoff (signature:
